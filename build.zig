@@ -65,29 +65,29 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const python_wrapper_module = b.createModule(.{
-        .root_source_file = b.path("zentencepiecemodule.zig"),
-        .optimize = optimize,
-        .target = target,
-        .strip = false,
-        .omit_frame_pointer = false,
-    });
-    python_wrapper_module.addImport("sentence_piece_zig_lib", lib_mod);
-    const wrapper_lib = b.addSharedLibrary(.{
-        .name = "zentencepiece",
-        .root_module = python_wrapper_module,
-        .version = .{ .major = 1, .minor = 2, .patch = 3 },
-    });
-    wrapper_lib.linkLibC();
-    const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
-    if (include_dirs) |includes_str| {
-        var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
-        while (tokenizer.next()) |path| {
-            wrapper_lib.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
-        }
-    }
-    b.installArtifact(wrapper_lib);
+    // const python_wrapper_module = b.createModule(.{
+    //     .root_source_file = b.path("zentencepiecemodule.zig"),
+    //     .optimize = optimize,
+    //     .target = target,
+    //     .strip = false,
+    //     .omit_frame_pointer = false,
+    // });
+    // python_wrapper_module.addImport("sentence_piece_zig_lib", lib_mod);
+    // const wrapper_lib = b.addSharedLibrary(.{
+    //     .name = "zentencepiece",
+    //     .root_module = python_wrapper_module,
+    //     .version = .{ .major = 1, .minor = 2, .patch = 3 },
+    // });
+    // wrapper_lib.linkLibC();
+    // const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
+    // if (include_dirs) |includes_str| {
+    //     var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
+    //     while (tokenizer.next()) |path| {
+    //         wrapper_lib.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
+    //     }
+    // }
+    // b.installArtifact(wrapper_lib);
 
-    const build_python_wrapper_step = b.step("build-python", "Build the Python wrapper");
-    build_python_wrapper_step.dependOn(&wrapper_lib.step);
+    // const build_python_wrapper_step = b.step("build-python", "Build the Python wrapper");
+    // build_python_wrapper_step.dependOn(&wrapper_lib.step);
 }

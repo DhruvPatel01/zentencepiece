@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const sentence_piece = @import("sentencepiece.pb.zig");
+const daryheap = @import("indexed_dpq.zig");
 pub const ModelProto = sentence_piece.ModelProto;
 
 const Symbol = struct {
@@ -11,18 +12,6 @@ const Symbol = struct {
     prev: u32,
     next: u32,
 };
-
-const HeapElement = struct {
-    index: u32,
-    start: u32,
-    end: u32,
-    score: f32,
-
-    pub fn compare(_: void, a: HeapElement, b: HeapElement) std.math.Order {
-        return std.math.order(b.score, a.score);
-    }
-};
-const HeapType = std.PriorityQueue(HeapElement, void, HeapElement.compare);
 
 pub const Tokenizer = struct {
     state_machine: StateMachine,
@@ -58,22 +47,16 @@ pub const Tokenizer = struct {
         self.model.deinit();
     }
 
-    noinline fn maybe_add(self: *Tokenizer, bytes: []const u8, heap: *HeapType, symbols: []Symbol, this_index: u32, next_index: u32) !void {
+    const HeapType = daryheap.IndexedDaryHeap(4);
+
+    inline fn maybe_add(self: *Tokenizer, bytes: []const u8, heap: *HeapType, symbols: []Symbol, this_index: u32, next_index: u32) !void {
         if (symbols[this_index].frozen or symbols[next_index].frozen) return;
         const start = symbols[this_index].start;
         const end = symbols[next_index].end;
 
         const possible_id = self.piece_id.get(bytes[start .. end + 1]);
         if (possible_id == null) return;
-
-        const to_merge = HeapElement{
-            .index = this_index,
-            .start = start,
-            .end = end,
-            .score = self.id_score[possible_id.?],
-        };
-
-        try heap.add(to_merge);
+        heap.changeScore(this_index, self.id_score[possible_id.?]);
     }
 
     pub noinline fn tokenize(self: *Tokenizer, allocator: std.mem.Allocator, bytes: []const u8) !std.ArrayList(u32) {
@@ -91,34 +74,59 @@ pub const Tokenizer = struct {
         const symbols = try self.state_machine.process(arena_allocator, processed_bytes);
         // std.debug.print("Processing: {} us\n", .{std.time.microTimestamp() - tick});
 
-        var heap = HeapType.init(arena_allocator, {});
-        try heap.ensureTotalCapacity(symbols.items.len);
+        var heap = try HeapType.initWithCapacity(arena_allocator, symbols.items.len);
 
         // tick = std.time.microTimestamp();
         for (1..symbols.items.len - 2) |i| {
-            try self.maybe_add(processed_bytes, &heap, symbols.items, @intCast(i), @intCast(i + 1));
+            if (symbols.items[i].frozen or symbols.items[i + 1].frozen) continue;
+            const start = symbols.items[i].start;
+            const end = symbols.items[i + 1].end;
+            if (self.piece_id.get(processed_bytes[start .. end + 1])) |id| {
+                heap.add(i, self.id_score[id]);
+            }
         }
         // std.debug.print("First pass: {} us\n", .{std.time.microTimestamp() - tick});
 
         var num_tokens = symbols.items.len - 2;
 
         // tick = std.time.microTimestamp();
-        while (heap.count() > 0) {
-            const to_merge = heap.remove();
-            const this_symbol = &symbols.items[to_merge.index];
+        while (heap.size > 0) {
+            const this_index: u32 = @intCast(heap.peekTop());
+            const this_symbol = &symbols.items[this_index];
             const next_symbol = &symbols.items[this_symbol.next];
 
-            if (to_merge.start != this_symbol.start or to_merge.end != next_symbol.end) continue;
+            if (heap.keyExists(this_symbol.next)) {
+                heap.removeKey(this_symbol.next);
+            }
 
             this_symbol.end = next_symbol.end;
             next_symbol.end = 0;
             next_symbol.start = 0;
             this_symbol.next = next_symbol.next;
-            symbols.items[this_symbol.next].prev = to_merge.index;
+            symbols.items[this_symbol.next].prev = this_index;
             num_tokens -= 1;
 
-            try self.maybe_add(processed_bytes, &heap, symbols.items, this_symbol.prev, to_merge.index);
-            try self.maybe_add(processed_bytes, &heap, symbols.items, to_merge.index, this_symbol.next);
+            if (symbols.items[this_symbol.next].frozen) {
+                heap.removeKey(this_index);
+            } else {
+                const start = this_symbol.start;
+                const end = symbols.items[this_symbol.next].end;
+                if (self.piece_id.get(processed_bytes[start .. end + 1])) |id| {
+                    heap.changeScore(this_index, self.id_score[id]);
+                } else {
+                    heap.removeKey(this_index);
+                }
+            }
+
+            if (!symbols.items[this_symbol.prev].frozen) {
+                const start = symbols.items[this_symbol.prev].start;
+                const end = this_symbol.end;
+                if (self.piece_id.get(processed_bytes[start .. end + 1])) |id| {
+                    heap.addOrChange(this_symbol.prev, self.id_score[id]);
+                } else if (heap.keyExists(this_symbol.prev)) {
+                    heap.removeKey(this_symbol.prev);
+                }
+            }
         }
         // std.debug.print("Remaning pass: {} us\n", .{std.time.microTimestamp() - tick});
 
