@@ -40,7 +40,7 @@ Note: The benchmark are for development purpose only. First benchmark used Zig's
 
 ## Old Implementation (without indexed priority queue)
 
-Benchmark 1 (5 runs): python test_zp.py
+```Benchmark 1 (5 runs): python test_zp.py
   measurement          mean ± σ            min … max           outliers
   wall_time          1.17s  ± 6.94ms    1.16s  … 1.18s           0 ( 0%)        
   peak_rss           64.9MB ± 77.6KB    64.8MB … 65.0MB          0 ( 0%)        
@@ -49,10 +49,11 @@ Benchmark 1 (5 runs): python test_zp.py
   cache_references   3.59M  ± 19.1K     3.57M  … 3.62M           0 ( 0%)        
   cache_misses       1.27M  ± 12.4K     1.25M  … 1.28M           0 ( 0%)        
   branch_misses      62.6M  ± 1.10M     62.0M  … 64.6M           0 ( 0%)    
+  ```
 
 ## New Implementation (with indexed priority queue)
 
-Benchmark 1 (9 runs): python test_zp.py
+```Benchmark 1 (9 runs): python test_zp.py
   measurement          mean ± σ            min … max           outliers
   wall_time           572ms ± 17.2ms     548ms …  593ms          0 ( 0%)        
   peak_rss           66.0MB ±  924KB    65.0MB … 66.9MB          0 ( 0%)        
@@ -61,3 +62,4 @@ Benchmark 1 (9 runs): python test_zp.py
   cache_references   3.76M  ± 80.8K     3.64M  … 3.88M           0 ( 0%)        
   cache_misses       1.44M  ± 78.2K     1.28M  … 1.52M           0 ( 0%)        
   branch_misses      5.44M  ± 1.51M     3.10M  … 7.65M           0 ( 0%) 
+```
