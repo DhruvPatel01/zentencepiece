@@ -28,10 +28,7 @@ pub fn main() !void {
     defer line.deinit();
     const writer = line.writer();
     while (reader.streamUntilDelimiter(writer, '\n', null)) {
-        var timer = try std.time.Timer.start();
         const tokens = try tokenizer.tokenize(gpa, line.items);
-        const elapsed: f64 = @floatFromInt(timer.read());
-        std.debug.print("Elapsed: {d:.3} us\n", .{elapsed / std.time.ns_per_us});
         defer tokens.deinit();
         for (tokens.items) |token| {
             std.debug.print("{} ", .{token});
@@ -55,4 +52,4 @@ pub fn main() !void {
 }
 
 const std = @import("std");
-const lib = @import("sentence_piece_zig_lib");
+const lib = @import("zentencepiece_lib");

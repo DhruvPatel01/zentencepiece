@@ -4,7 +4,7 @@ const c = @cImport({
     @cInclude("Python.h");
 });
 const std = @import("std");
-const root = @import("sentence_piece_zig_lib");
+const root = @import("zentencepiece_lib");
 
 fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.C) [*c]c.PyObject {
     _ = self;

@@ -13,13 +13,14 @@ class ZigBuilder(build_ext):
         if not os.path.exists(self.build_lib):
             os.makedirs(self.build_lib)
 
-        output_path = self.get_ext_fullname(ext.name)
+        output_path = self.get_ext_fullpath(ext.name)
 
         self.spawn(
             [
                 "zig",
                 "build",
-                "build-python",
+                "python",
+                "-Doptimize=ReleaseFast",
                 f"-Dinclude_dirs={','.join(self.include_dirs)}"
             ]
         )

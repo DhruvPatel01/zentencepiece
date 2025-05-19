@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
 
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "sentence_piece_zig",
+        .name = "zentencepiece",
         .root_module = lib_mod,
     });
     lib.linker_allow_shlib_undefined = true;
@@ -34,11 +34,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe_mod.addImport("sentence_piece_zig_lib", lib_mod);
-    exe_mod.addImport("protobuf", protobuf_dep.module("protobuf"));
+    exe_mod.addImport("zentencepiece_lib", lib_mod);
 
     const exe = b.addExecutable(.{
-        .name = "sentence_piece_zig",
+        .name = "zentencepiece",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
@@ -65,29 +64,29 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    // const python_wrapper_module = b.createModule(.{
-    //     .root_source_file = b.path("zentencepiecemodule.zig"),
-    //     .optimize = optimize,
-    //     .target = target,
-    //     .strip = false,
-    //     .omit_frame_pointer = false,
-    // });
-    // python_wrapper_module.addImport("sentence_piece_zig_lib", lib_mod);
-    // const wrapper_lib = b.addSharedLibrary(.{
-    //     .name = "zentencepiece",
-    //     .root_module = python_wrapper_module,
-    //     .version = .{ .major = 1, .minor = 2, .patch = 3 },
-    // });
-    // wrapper_lib.linkLibC();
-    // const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
-    // if (include_dirs) |includes_str| {
-    //     var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
-    //     while (tokenizer.next()) |path| {
-    //         wrapper_lib.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
-    //     }
-    // }
-    // b.installArtifact(wrapper_lib);
-
-    // const build_python_wrapper_step = b.step("build-python", "Build the Python wrapper");
-    // build_python_wrapper_step.dependOn(&wrapper_lib.step);
+    const python_wrapper_module = b.createModule(.{
+        .root_source_file = b.path("zentencepiecemodule.zig"),
+        .optimize = optimize,
+        .target = target,
+        .strip = false,
+        .omit_frame_pointer = false,
+    });
+    python_wrapper_module.addImport("zentencepiece_lib", lib_mod);
+    const wrapper_lib = b.addSharedLibrary(.{
+        .name = "zentencepiece",
+        .root_module = python_wrapper_module,
+        .version = .{ .major = 0, .minor = 1, .patch = 1 },
+    });
+    wrapper_lib.linkLibC();
+    const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
+    if (include_dirs) |includes_str| {
+        var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
+        while (tokenizer.next()) |path| {
+            wrapper_lib.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
+        }
+    }
+    var python_wrapper_step = b.step("python", "Build and install the Python extension (.so)");
+    const python_install_step = b.addInstallArtifact(wrapper_lib, .{});
+    python_wrapper_step.dependOn(&wrapper_lib.step); // Builds .so
+    python_wrapper_step.dependOn(&python_install_step.step); // Installs .so
 }

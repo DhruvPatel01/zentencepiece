@@ -34,22 +34,28 @@ pub fn IndexedDaryHeap(comptime d: comptime_int) type {
             self.size = 0;
         }
 
+        /// Returns the key of the top element in the heap.
+        /// Assumes that the heap is not empty.
         pub inline fn peekTop(self: *Self) usize {
             return self.position_to_key[0];
         }
 
+        /// Returns the score of the top element in the heap.
+        /// Assumes that the heap is not empty.
         pub inline fn peekFirstScore(self: *Self) usize {
             return self.scores[0];
         }
 
+        /// Returns the number of elements in the heap.
         pub inline fn keyExists(self: *Self, key: usize) bool {
             return self.key_to_position[key] < self.size;
         }
 
-        pub inline fn positionOf(self: *Self, key: usize) usize {
+        inline fn positionOf(self: *Self, key: usize) usize {
             return self.key_to_position[key];
         }
 
+        /// Adds a new key to the heap or changes the score of an existing key.
         pub fn addOrChange(self: *Self, key: usize, score: f32) void {
             if (self.keyExists(key)) {
                 self.changeScore(key, score);
