@@ -14,11 +14,13 @@ fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.C) [
     const model_path = std.mem.sliceTo(command, 0); // Convert to []u8 until null terminator
     const obj = c.PyObject_CallObject(@ptrCast(TokenizerType), null) orelse return null;
     const tokenizer_obj: *TokenizerObject = @ptrCast(obj);
+    tokenizer_obj.tokenizer = null;
     const tokenizer = std.heap.c_allocator.create(root.Tokenizer) catch {
         c.Py_DECREF(obj);
         return null;
     };
     tokenizer.* = root.Tokenizer.init(std.heap.c_allocator, model_path) catch {
+        c.PyErr_SetString(c.PyExc_ValueError, "Unable to load the model. Is the path correct?");
         c.Py_DECREF(obj);
         return null;
     };
@@ -28,7 +30,7 @@ fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.C) [
 
 const TokenizerObject = extern struct {
     ob_base: c.PyObject,
-    tokenizer: *root.Tokenizer, // need pointer to make this struct extern
+    tokenizer: ?*root.Tokenizer, // need pointer to make this struct extern
 };
 
 fn TokenizerType_dealloc(self: *TokenizerObject) callconv(.C) void {
@@ -37,9 +39,10 @@ fn TokenizerType_dealloc(self: *TokenizerObject) callconv(.C) void {
 }
 
 fn TokenizerType_free(self: *TokenizerObject) callconv(.C) void {
-    std.debug.print("Freeing\n", .{});
-    self.tokenizer.deinit();
-    std.heap.c_allocator.destroy(self.tokenizer);
+    if (self.tokenizer != null) {
+        self.tokenizer.?.deinit();
+    }
+    std.heap.c_allocator.destroy(self.tokenizer.?);
 }
 
 fn tokenize_method(self: ?*c.PyObject, arg: ?*c.PyObject) callconv(.C) ?*c.PyObject {
@@ -61,7 +64,12 @@ fn tokenize_method(self: ?*c.PyObject, arg: ?*c.PyObject) callconv(.C) ?*c.PyObj
     const tokenizer_object: *TokenizerObject = @ptrCast(self.?);
     const tokenizer = tokenizer_object.tokenizer;
 
-    if (tokenizer.tokenize(std.heap.c_allocator, text)) |tokens| {
+    if (tokenizer == null) {
+        c.PyErr_SetString(c.PyExc_TypeError, "Tokenizer is not fully initialized. Did you call init?");
+        return null;
+    }
+
+    if (tokenizer.?.tokenize(std.heap.c_allocator, text)) |tokens| {
         defer tokens.deinit();
         const list_obj = c.PyList_New(@intCast(tokens.items.len));
         if (list_obj == null) return null;
