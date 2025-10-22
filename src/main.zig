@@ -22,30 +22,31 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile(filename, .{});
     defer file.close();
 
-    var buf_reader = std.io.bufferedReader(file.reader());
-    const reader = buf_reader.reader();
-    var line = std.ArrayList(u8).init(gpa);
-    defer line.deinit();
-    const writer = line.writer();
-    while (reader.streamUntilDelimiter(writer, '\n', null)) {
-        const tokens = try tokenizer.tokenize(gpa, line.items);
-        defer tokens.deinit();
+    var buffer: [2 * 1024]u8 = undefined;
+    var reader = file.reader(&buffer);
+    var allocating_writer = std.Io.Writer.Allocating.init(gpa);
+    defer allocating_writer.deinit();
+
+    while (reader.interface.streamDelimiter(&allocating_writer.writer, '\n')) |_| {
+        const line = allocating_writer.written();
+        var tokens = try tokenizer.tokenize(gpa, line);
+        defer tokens.deinit(gpa);
         for (tokens.items) |token| {
             std.debug.print("{} ", .{token});
         }
-        line.clearRetainingCapacity();
+        allocating_writer.clearRetainingCapacity();
+        reader.interface.toss(1);
         std.debug.print("\n", .{});
     } else |err| switch (err) {
         error.EndOfStream => { // end of file
-            if (line.items.len != 0) {
-                const tokens = try tokenizer.tokenize(gpa, line.items);
-                defer tokens.deinit();
-                for (tokens.items) |token| {
-                    std.debug.print("{} ", .{token});
-                }
-                line.clearRetainingCapacity();
-                std.debug.print("\n", .{});
+            const line = allocating_writer.written();
+            var tokens = try tokenizer.tokenize(gpa, line);
+            defer tokens.deinit(gpa);
+            for (tokens.items) |token| {
+                std.debug.print("{} ", .{token});
             }
+            allocating_writer.clearRetainingCapacity();
+            std.debug.print("\n", .{});
         },
         else => return err, // Propagate error
     }

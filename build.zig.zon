@@ -28,7 +28,7 @@
 
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.15.0-dev.34+8e0a4ca4b",
+    .minimum_zig_version = "0.16.0-dev",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -37,8 +37,8 @@
     // internet connectivity.
     .dependencies = .{
         .protobuf = .{
-            .url = "git+https://github.com/Arwalk/zig-protobuf?ref=zig-master#ebca237f488ead6eaa2859778277dca598cb533b",
-            .hash = "protobuf-0.0.0-AAAAAMNjGwA7WwaIAwNcNvXRXuBVfPALgc1twPP6lWW9",
+            .url = "git+https://github.com/Arwalk/zig-protobuf?ref=master#51db0c084f3c0e3d130a67cfc3f0c1ec77277922",
+            .hash = "protobuf-3.0.0-0e82al57KACg8Mh9_YmxBxLGcmABvCPDJRgiL3yjwfIU",
         },
     },
     .paths = .{

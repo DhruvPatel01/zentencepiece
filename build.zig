@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) void {
 
     // Different commands
 
-    const protoc_step = protobuf.RunProtocStep.create(b, protobuf_dep.builder, target, .{
+    const protoc_step = protobuf.RunProtocStep.create(protobuf_dep.builder, target, .{
         .destination_directory = b.path("src/"),
         .source_files = &.{
             "src/sentencepiece_model.proto",
@@ -72,8 +72,9 @@ pub fn build(b: *std.Build) void {
         .omit_frame_pointer = false,
     });
     python_wrapper_module.addImport("zentencepiece_lib", lib_mod);
-    const wrapper_lib = b.addSharedLibrary(.{
+    const wrapper_lib = b.addLibrary(.{
         .name = "zentencepiece",
+        .linkage = .dynamic,
         .root_module = python_wrapper_module,
         .version = .{ .major = 0, .minor = 1, .patch = 1 },
     });

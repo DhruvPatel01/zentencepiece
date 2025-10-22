@@ -28,7 +28,7 @@ pub const Tokenizer = struct {
         try piece_id.ensureTotalCapacity(allocator, @intCast(model.pieces.items.len));
 
         for (model.pieces.items, 0..) |*piece, i| {
-            try piece_id.put(allocator, piece.piece.?.getSlice(), @intCast(i));
+            try piece_id.put(allocator, piece.piece.?, @intCast(i));
             id_score[i] = piece.score.?;
         }
         return Tokenizer{
@@ -44,7 +44,7 @@ pub const Tokenizer = struct {
         self.state_machine.deinit(self.allocator);
         self.allocator.free(self.id_score);
         self.piece_id.deinit(self.allocator);
-        self.model.deinit();
+        self.model.deinit(self.allocator);
     }
 
     const HeapType = daryheap.IndexedDaryHeap(4);
@@ -138,11 +138,12 @@ pub const Tokenizer = struct {
             const end = symbols.items[i].end;
             i = symbols.items[i].next;
             if (self.piece_id.get(processed_bytes[start .. end + 1])) |v| {
-                try tokens.append(v);
+                try tokens.append(allocator, v);
             } else {
                 for (processed_bytes[start .. end + 1]) |byte| {
-                    const id = try std.fmt.bufPrint(&unknown_buffer, "<0x{X}>", .{byte});
-                    try tokens.append(self.piece_id.get(id).?);
+                    const id = try std.fmt.bufPrint(&unknown_buffer, "<0x{X:02}>", .{byte});
+                    // std.debug.print("{s}", .{id});
+                    try tokens.append(allocator, self.piece_id.get(id).?);
                 }
             }
         }
@@ -165,7 +166,7 @@ pub const StateMachine = struct {
                 continue;
             }
             var state: u32 = 0;
-            for (piece.piece.?.Owned.str) |char| {
+            for (piece.piece.?) |char| {
                 if (transition_table.items[state][char] == 0) {
                     const new_state: u32 = @intCast(valid_states.items.len);
                     try transition_table.append(allocator, [_]u32{0} ** 256);
@@ -251,17 +252,8 @@ const code_point_lengths = [_]u8{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4
 // Code to read the protobuf model
 fn read_model(allocator: std.mem.Allocator, path: []const u8) !ModelProto {
     var model_file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
-    const stats = try model_file.stat();
-    const file_size = stats.size;
-
-    const raw_file_ptr = try std.posix.mmap(
-        null,
-        file_size,
-        std.posix.PROT.READ,
-        .{ .TYPE = .SHARED },
-        model_file.handle,
-        0,
-    );
-    defer std.posix.munmap(raw_file_ptr);
-    return ModelProto.decode(raw_file_ptr, allocator);
+    defer model_file.close();
+    var buffer: [2048]u8 = undefined;
+    var reader = model_file.reader(&buffer);
+    return ModelProto.decode(&reader.interface, allocator);
 }
