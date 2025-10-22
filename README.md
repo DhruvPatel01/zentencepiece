@@ -36,7 +36,7 @@ This internally runs `zig build python -Drelease-fast -Iinclude_dirs` to build t
 
 # Benchmarks
 
-Note: The benchmark are for development purpose only. First benchmark used Zig's priority queue which doesn't allow one to change the priority of the element. I have letter implemented indexed priority queue, which made the things much faster. I only tested one text file with single sentence (with longer than 100 characters (to trigger pririty queue implementation of kitoken)). I think I am at more or less at the same level as kitoken. I didn't optmize further. 
+Note: The benchmark are for development purpose only. First benchmark used Zig's priority queue which doesn't allow one to change the priority of the element. I have later implemented indexed priority queue, which made the things much faster. I only tested one text file with single sentence (with longer than 100 characters (to trigger pririty queue implementation of kitoken)). I think I am at more or less at the same level as kitoken. I didn't optmize further. 
 
 ## Old Implementation (without indexed priority queue)
 
