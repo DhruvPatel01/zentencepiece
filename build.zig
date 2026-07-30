@@ -44,48 +44,56 @@ pub fn build(b: *std.Build) void {
 
     // Different commands
 
+    const gen_proto = b.step("gen-proto", "generates zig files from protocol buffer definitions");
+
     const protoc_step = protobuf.RunProtocStep.create(protobuf_dep.builder, target, .{
         .destination_directory = b.path("src/"),
         .source_files = &.{
-            "src/sentencepiece_model.proto",
+            b.path("src/sentencepiece_model.proto"),
         },
         .include_directories = &.{},
     });
-    const gen_proto = b.step("gen-proto", "generates zig files from protocol buffer definitions");
-    gen_proto.dependOn(&protoc_step.step);
+    gen_proto.dependOn(protoc_step.step);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    const translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("zentencepiecemodule.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
+    if (include_dirs) |includes_str| {
+        var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
+        while (tokenizer.next()) |path| {
+            translate_c.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
+        }
+    }
+
     const python_wrapper_module = b.createModule(.{
         .root_source_file = b.path("zentencepiecemodule.zig"),
+        .imports = &.{.{ .name = "c", .module = translate_c.createModule() }},
         .optimize = optimize,
         .target = target,
         .strip = false,
         .omit_frame_pointer = false,
+        .link_libc = true,
     });
     python_wrapper_module.addImport("zentencepiece_lib", lib_mod);
+
     const wrapper_lib = b.addLibrary(.{
         .name = "zentencepiece",
         .linkage = .dynamic,
         .root_module = python_wrapper_module,
         .version = .{ .major = 0, .minor = 1, .patch = 1 },
     });
-    wrapper_lib.linkLibC();
-    const include_dirs = b.option([]const u8, "include_dirs", "Comma-separated list of include directories");
-    if (include_dirs) |includes_str| {
-        var tokenizer = std.mem.tokenizeSequence(u8, includes_str, ",");
-        while (tokenizer.next()) |path| {
-            wrapper_lib.addIncludePath(std.Build.LazyPath{ .cwd_relative = path });
-        }
-    }
+
     var python_wrapper_step = b.step("python", "Build and install the Python extension (.so)");
     const python_install_step = b.addInstallArtifact(wrapper_lib, .{});
     python_wrapper_step.dependOn(&wrapper_lib.step); // Builds .so

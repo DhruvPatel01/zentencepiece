@@ -20,8 +20,8 @@ pub const Tokenizer = struct {
     piece_id: std.StringHashMapUnmanaged(u32),
     id_score: []f32,
 
-    pub fn init(allocator: std.mem.Allocator, model_path: []const u8) !Tokenizer {
-        const model = try read_model(allocator, model_path);
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, model_path: []const u8) !Tokenizer {
+        const model = try read_model(io, allocator, model_path);
         const state_machine = try StateMachine.new(allocator, &model);
         var piece_id = std.StringHashMapUnmanaged(u32){};
         var id_score = try allocator.alloc(f32, model.pieces.items.len);
@@ -160,7 +160,7 @@ pub const StateMachine = struct {
         var transition_table = try std.ArrayListUnmanaged([256]u32).initCapacity(allocator, 512);
         var valid_states = try std.ArrayListUnmanaged(bool).initCapacity(allocator, 512);
 
-        try transition_table.append(allocator, [_]u32{0} ** 256);
+        try transition_table.append(allocator, @splat(0));
         for (model.pieces.items) |*piece| {
             if (piece.type.? != sentence_piece.ModelProto.SentencePiece.Type.USER_DEFINED) {
                 continue;
@@ -169,7 +169,7 @@ pub const StateMachine = struct {
             for (piece.piece.?) |char| {
                 if (transition_table.items[state][char] == 0) {
                     const new_state: u32 = @intCast(valid_states.items.len);
-                    try transition_table.append(allocator, [_]u32{0} ** 256);
+                    try transition_table.append(allocator, @splat(0));
                     try valid_states.append(allocator, false);
                     transition_table.items[state][char] = new_state;
                 }
@@ -250,10 +250,10 @@ pub fn replace_spaces(arena: std.mem.Allocator, string: []const u8) ![]u8 {
 const code_point_lengths = [_]u8{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 3, 4 };
 
 // Code to read the protobuf model
-fn read_model(allocator: std.mem.Allocator, path: []const u8) !ModelProto {
-    var model_file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
-    defer model_file.close();
+fn read_model(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !ModelProto {
+    var model_file = try std.Io.Dir.cwd().openFile(io, path, .{ .mode = .read_only });
+    defer model_file.close(io);
     var buffer: [2048]u8 = undefined;
-    var reader = model_file.reader(&buffer);
+    var reader = model_file.reader(io, &buffer);
     return ModelProto.decode(&reader.interface, allocator);
 }

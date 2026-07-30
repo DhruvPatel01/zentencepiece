@@ -1,12 +1,8 @@
-const c = @cImport({
-    @cDefine("PY_SSIZE_T_CLEAN", {});
-    // @cDefine("PY_LIMITED_API", "031200f0");
-    @cInclude("Python.h");
-});
+const c = @import("c");
 const std = @import("std");
 const root = @import("zentencepiece_lib");
 
-fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.C) [*c]c.PyObject {
+fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.c) [*c]c.PyObject {
     _ = self;
     var command: [*:0]u8 = undefined;
     if (c.PyArg_ParseTuple(args, "s", &command) == 0)
@@ -19,7 +15,10 @@ fn zentencepiece_load(self: [*c]c.PyObject, args: [*c]c.PyObject) callconv(.C) [
         c.Py_DECREF(obj);
         return null;
     };
-    tokenizer.* = root.Tokenizer.init(std.heap.c_allocator, model_path) catch {
+    var th = std.Io.Threaded.init_single_threaded;
+    defer th.deinit();
+
+    tokenizer.* = root.Tokenizer.init(th.io(), std.heap.c_allocator, model_path) catch {
         c.PyErr_SetString(c.PyExc_ValueError, "Unable to load the model. Is the path correct?");
         c.Py_DECREF(obj);
         return null;
@@ -33,19 +32,19 @@ const TokenizerObject = extern struct {
     tokenizer: ?*root.Tokenizer, // need pointer to make this struct extern
 };
 
-fn TokenizerType_dealloc(self: *TokenizerObject) callconv(.C) void {
+fn TokenizerType_dealloc(self: *TokenizerObject) callconv(.c) void {
     std.debug.print("Deallocing", .{});
     c.Py_TYPE(@ptrCast(self)).*.tp_free.?(@ptrCast(self));
 }
 
-fn TokenizerType_free(self: *TokenizerObject) callconv(.C) void {
+fn TokenizerType_free(self: *TokenizerObject) callconv(.c) void {
     if (self.tokenizer != null) {
         self.tokenizer.?.deinit();
     }
     std.heap.c_allocator.destroy(self.tokenizer.?);
 }
 
-fn tokenize_method(self: ?*c.PyObject, arg: ?*c.PyObject) callconv(.C) ?*c.PyObject {
+fn tokenize_method(self: ?*c.PyObject, arg: ?*c.PyObject) callconv(.c) ?*c.PyObject {
     if (self == null) {
         c.PyErr_SetString(c.PyExc_TypeError, "self is null. How come???");
         return null;
@@ -69,8 +68,9 @@ fn tokenize_method(self: ?*c.PyObject, arg: ?*c.PyObject) callconv(.C) ?*c.PyObj
         return null;
     }
 
-    if (tokenizer.?.tokenize(std.heap.c_allocator, text)) |tokens| {
-        defer tokens.deinit();
+    var result = tokenizer.?.tokenize(std.heap.c_allocator, text);
+    if (result) |*tokens| {
+        defer tokens.deinit(std.heap.c_allocator);
         const list_obj = c.PyList_New(@intCast(tokens.items.len));
         if (list_obj == null) return null;
         for (tokens.items, 0..) |token, i| {
@@ -99,10 +99,10 @@ const TokenizerMethods = [_]c.PyMethodDef{
 };
 
 var TokenizerType_slots = [_]c.PyType_Slot{
-    .{ .slot = c.Py_tp_new, .pfunc = @constCast(@ptrCast(&c.PyType_GenericNew)) },
-    .{ .slot = c.Py_tp_methods, .pfunc = @constCast(@ptrCast(&TokenizerMethods)) },
-    .{ .slot = c.Py_tp_free, .pfunc = @constCast(@ptrCast(&TokenizerType_free)) },
-    .{ .slot = c.Py_tp_dealloc, .pfunc = @constCast(@ptrCast(&TokenizerType_dealloc)) },
+    .{ .slot = c.Py_tp_new, .pfunc = @ptrCast(@constCast(&c.PyType_GenericNew)) },
+    .{ .slot = c.Py_tp_methods, .pfunc = @ptrCast(@constCast(&TokenizerMethods)) },
+    .{ .slot = c.Py_tp_free, .pfunc = @ptrCast(@constCast(&TokenizerType_free)) },
+    .{ .slot = c.Py_tp_dealloc, .pfunc = @ptrCast(@constCast(&TokenizerType_dealloc)) },
     .{ .slot = 0, .pfunc = null },
 };
 
